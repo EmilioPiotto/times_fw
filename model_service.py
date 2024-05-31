@@ -25,6 +25,7 @@ class ModelService(nn.Module):
         
             if (epoch+1) % 2 == 0:
                 print(f'Epoch [{epoch+1}/{epochs}], Loss: {average_loss:.4f}')
+        return average_loss
     
     def evaluation(self, model, x_test, y_test, criterion):
         model.eval()
@@ -37,6 +38,8 @@ class ModelService(nn.Module):
         
             average_loss = total_loss / len(x_test)
             print(f'Test Loss: {average_loss:.4f}')
+        return average_loss
+
 
     @staticmethod
     def reshape_input(s):
