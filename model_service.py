@@ -37,6 +37,10 @@ class ModelService(nn.Module):
         
             average_loss = total_loss / len(x_test)
             print(f'Test Loss: {average_loss:.4f}')
+
+    @staticmethod
+    def reshape_input(s):
+        pass
     
 
 
@@ -69,3 +73,17 @@ class SimpleLSTM(ModelService):
     @staticmethod
     def reshape_input(s):
         return s.unsqueeze(1)
+    
+
+class LinRegNN(ModelService):
+    def __init__(self, input_size, output_size):
+        super(ModelService, self).__init__()
+        self.fc = nn.Linear(input_size, output_size)
+
+    def forward(self, x):
+        x = self.fc(x)
+        return x
+    
+    @staticmethod
+    def reshape_input(s):
+        return s.permute(0, 2, 1)

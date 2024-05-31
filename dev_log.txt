@@ -1,1 +1,3 @@
 - Set up git, venv
+- Set up base model and input data processing services
+- Set up a test example
