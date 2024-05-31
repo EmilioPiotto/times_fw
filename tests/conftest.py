@@ -1,6 +1,6 @@
 import pytest
 import torch
-from data_processing_service import DataProcessingService
+from backend.data_processing_service import DataProcessingService
 
 @pytest.fixture
 def data_processor():

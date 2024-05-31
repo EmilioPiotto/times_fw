@@ -1,4 +1,3 @@
-import pytest
 import torch
 
 def test_data_initialization_and_sample(data_processor, raw_data):

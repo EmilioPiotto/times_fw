@@ -2,7 +2,7 @@ import pytest
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from model_service import ModelService, SimpleNN, SimpleLSTM, LinRegNN
+from backend.model_service import ModelService, SimpleNN, SimpleLSTM, LinRegNN
 
 
 @pytest.fixture
