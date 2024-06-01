@@ -14,6 +14,15 @@ model_name = st.selectbox("Select Model", ["SimpleNN", "SimpleLSTM", "LinRegNN"]
 st.header("Enter Time Series Manually")
 manual_input = st.text_input("Enter time series data (comma-separated)")
 
+# Customizing matplotlib style to match Streamlit's theme
+plt.style.use('dark_background')
+plt.rcParams['figure.figsize'] = [10, 5]
+background_color = st.get_option("theme.backgroundColor")
+default_background_color = '#262730'  # Default dark background color
+plt.rcParams['axes.facecolor'] = background_color if background_color else default_background_color
+plt.rcParams['text.color'] = 'white'
+plt.rcParams['axes.labelcolor'] = 'white'
+
 if uploaded_file is not None:
     data = np.loadtxt(uploaded_file)
     data_list = [float(x) for x in data]
@@ -36,9 +45,9 @@ if uploaded_file is not None:
             ax.plot(range(len(data_list)), data_list, label='Original Time Series')
             ax.plot(range(len(data_list), len(data_list) + 1), prediction, 'ro', label='Predicted Value')
             ax.plot([len(data_list) - 1, len(data_list)], [data_list[-1], prediction], 'r--', label='Prediction Line')
-            ax.set_xlabel('Time Steps')
-            ax.set_ylabel('Value')
-            ax.set_title('Time Series Prediction')
+            ax.set_xlabel('Time Steps', color='white')  # Setting axis labels color to white
+            ax.set_ylabel('Value', color='white')      # Setting axis labels color to white
+            ax.set_title('Time Series Prediction', color='white')  # Setting title color to white
             ax.legend()
             st.pyplot(fig)
 
@@ -65,9 +74,9 @@ elif manual_input:
             ax.plot(range(len(data_list)), data_list, label='Original Time Series')
             ax.plot(range(len(data_list), len(data_list) + 1), prediction, 'ro', label='Predicted Value')
             ax.plot([len(data_list) - 1, len(data_list)], [data_list[-1], prediction], 'r--', label='Prediction Line')
-            ax.set_xlabel('Time Steps')
-            ax.set_ylabel('Value')
-            ax.set_title('Time Series Prediction')
+            ax.set_xlabel('Time Steps', color='white')  # Setting axis labels color to white
+            ax.set_ylabel('Value', color='white')      # Setting axis labels color to white
+            ax.set_title('Time Series Prediction', color='white')  # Setting title color to white
             ax.legend()
             st.pyplot(fig)
 
