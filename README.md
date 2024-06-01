@@ -11,6 +11,7 @@ This project provides a web application for time series prediction using various
 - `tests/`: Unit tests.
 
 ## Clone and run from IDE
+source .venv/Scripts/activate
 1. uvicorn backend.main:app --reload
 2. streamlit run app.py
 
