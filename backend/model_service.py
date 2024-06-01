@@ -10,7 +10,7 @@ class ModelService(nn.Module):
     def forward(self, x):
         pass
     
-    def train_loop(self, model, criterion, optimizer, x_train, y_train, epochs, directory = "backend/models/test_",checkpoint_path_to_resume = ""):
+    def train_loop(self, model, criterion, optimizer, x_train, y_train, epochs, directory = "backend/checkpoints/test_",checkpoint_path_to_resume = ""):
         start_epoch = 0
         if os.path.exists(checkpoint_path_to_resume):
             # Load the checkpoint to resume training
@@ -63,11 +63,29 @@ class ModelService(nn.Module):
             print(f'Test Loss: {average_loss:.4f}')
         return average_loss
 
-
     @staticmethod
     def reshape_input(s):
         pass
     
+    @staticmethod
+    def register(model, name: str, path: str = "backend/models/"):
+        try:
+            path = path + name
+            torch.save(model, path)
+            print("Model saved successfully.")
+        except Exception as e:
+            print(f"Error saving the entire model: {e}")
+
+    @staticmethod
+    def load_registered_model(path):
+        try:
+            loaded_model = torch.load(path)
+            loaded_model.eval()
+            print("Model loaded successfully.")
+            return loaded_model
+        except Exception as e:
+            print(f"Error loading the entire model: {e}")
+
 
 
 class SimpleNN(ModelService):
