@@ -1,1 +1,3 @@
 __pycache__/
+backend/checkpoints/*
+backend/models/template_test

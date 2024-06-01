@@ -68,11 +68,11 @@ class ModelService(nn.Module):
         pass
     
     @staticmethod
-    def register(model, name: str, path: str = "backend/model/"):
+    def register(model, name: str, path: str = "backend/models/"):
         try:
-            path = model + name
+            path = path + name
             torch.save(model, path)
-            print("Entire model saved successfully.")
+            print("Model saved successfully.")
         except Exception as e:
             print(f"Error saving the entire model: {e}")
 
@@ -81,7 +81,7 @@ class ModelService(nn.Module):
         try:
             loaded_model = torch.load(path)
             loaded_model.eval()
-            print("Entire model loaded successfully.")
+            print("Model loaded successfully.")
             return loaded_model
         except Exception as e:
             print(f"Error loading the entire model: {e}")

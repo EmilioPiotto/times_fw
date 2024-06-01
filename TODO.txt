@@ -1,0 +1,2 @@
+- Refactor model service to take the model as an attribute so we don't need to explicitly provide the model from outside, instead we can just use self.
+- Add name attribute to models, use it to save model, checkpoints and load them.
