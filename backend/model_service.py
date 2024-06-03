@@ -4,6 +4,8 @@ import torch.optim as optim
 import os
 from hyperopt import hp, fmin, tpe, Trials, STATUS_OK
 from hyperopt.pyll.base import scope
+import wandb
+from dotenv import load_dotenv
 
 
 class ModelService(nn.Module):
@@ -13,10 +15,24 @@ class ModelService(nn.Module):
     def forward(self, x):
         raise NotImplementedError("Subclasses should implement this!")
 
-    def train_loop(self, model, criterion, optimizer, x_train, y_train, epochs, directory="backend/checkpoints/test_", checkpoint_path_to_resume=""):
+    def train_loop(self, model, criterion, optimizer, x_train, y_train, epochs, directory="backend/checkpoints/test_", checkpoint_path_to_resume="", wandb_project = None):
         start_epoch = 0
         if checkpoint_path_to_resume and os.path.exists(checkpoint_path_to_resume):
             start_epoch, best_loss = self._resume_training(checkpoint_path_to_resume, model, optimizer)
+
+        if wandb_project:
+            # self._wandb_login()
+            wandb.init(
+                        project=wandb_project,
+                        config={
+                        "learning_rate": optimizer.param_groups[0]['lr'],
+                        "architecture": str(model.__class__).split('.')[-1].strip("'>"),
+                        "dataset": "CIFAR-100",
+                        "epochs": epochs,
+                        "optimizer": str(optimizer.__class__).split('.')[-1].strip("'>"),
+                        "criterion": str(criterion.__class__).split('.')[-1].strip("'>")
+                        }
+                    )
 
         x_train = model.reshape_input(x_train)
         for epoch in range(start_epoch, epochs):
@@ -24,11 +40,16 @@ class ModelService(nn.Module):
             total_loss = self._train_epoch(model, criterion, optimizer, x_train, y_train)
 
             average_loss = total_loss / len(x_train)
+
+            if wandb_project:
+                wandb.log({"average_loss": average_loss})
             print(f'Epoch [{epoch + 1}/{epochs}], Loss: {average_loss:.4f}')
 
             if (epoch + 1) % 5 == 0:
                 self._save_checkpoint(directory, epoch, model, optimizer, average_loss)
 
+        if wandb_project:
+            wandb.finish()
         return average_loss
 
     def evaluation(self, model, x_test, y_test, criterion):
@@ -124,6 +145,15 @@ class ModelService(nn.Module):
             'loss': average_loss
         }, checkpoint_path)
         print(f"Checkpoint saved at {checkpoint_path}")
+
+    @staticmethod
+    def wandb_login():
+        if wandb.run is not None:
+            print("There is an active connection to wandb")
+        else:
+            load_dotenv()
+            wandb_api_key = os.getenv("WANDB_API_KEY")
+            wandb.login(key=wandb_api_key)
 
 
 class SimpleNN(ModelService):
