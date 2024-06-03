@@ -1,3 +1,8 @@
+.env
 __pycache__/
-backend/checkpoints/*
 backend/models/template_test
+z_tests_ignore.ipynb
+wandb/*
+backend/checkpoints/*
+backend/checkpoints/lr01_10.pth
+backend/checkpoints/test_5.pth
