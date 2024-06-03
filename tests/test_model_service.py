@@ -32,22 +32,30 @@ def test_lin_reg_nn_forward(lin_reg_nn):
     output = lin_reg_nn(x)
     assert output.shape == torch.Size([32, 1])
 
+def test_hyperparameter_optimization(tensor_sample_data):
+    x_train, y_train, x_test, y_test = tensor_sample_data
+    model_params_space = {
+        'input_size': 10,
+        'output_size': 1
+    }
+    best_hyperparams = ModelService.hyperparameter_optimization(LinRegNN, x_train, y_train, x_test, y_test, model_params_space, max_evals=2)
+
+    assert best_hyperparams['learning_rate'] > 0
+    assert best_hyperparams['epochs'] > 0
+
 def test_train_loop(lin_reg_nn, tensor_sample_data):
     x_train, y_train, _, _ = tensor_sample_data
     criterion = nn.MSELoss()
     optimizer = optim.Adam(lin_reg_nn.parameters(), lr=0.001)
     model_service = ModelService()
-    x_train_rs= lin_reg_nn.reshape_input(x_train)
-    loss = model_service.train_loop(lin_reg_nn, criterion, optimizer, x_train_rs, y_train, epochs=2)
+    loss = model_service.train_loop(lin_reg_nn, criterion, optimizer, x_train, y_train, epochs=2)
     assert loss > 0
-
 
 def test_evaluation(lin_reg_nn, tensor_sample_data):
     _, _, x_test, y_test = tensor_sample_data
     criterion = nn.MSELoss()
     model_service = ModelService()
-    x_test_rs= lin_reg_nn.reshape_input(x_test)
-    loss = model_service.evaluation(lin_reg_nn, x_test_rs, y_test, criterion)
+    loss = model_service.evaluation(lin_reg_nn, x_test, y_test, criterion)
     assert loss > 0
 
 def test_simple_nn_reshape_input(simple_nn, tensor_sample_data):
@@ -64,3 +72,4 @@ def test_lin_reg_nn_reshape_input(lin_reg_nn, tensor_sample_data):
     x_train, _, _, _ = tensor_sample_data
     reshaped = lin_reg_nn.reshape_input(x_train)
     assert reshaped.shape == torch.Size([32, 1, 10])
+
