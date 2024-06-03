@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import os
+from hyperopt import hp, fmin, tpe, Trials, STATUS_OK
+from hyperopt.pyll.base import scope
 
 
 class ModelService(nn.Module):
@@ -9,19 +12,19 @@ class ModelService(nn.Module):
 
     def forward(self, x):
         pass
-    
-    def train_loop(self, model, criterion, optimizer, x_train, y_train, epochs, directory = "backend/checkpoints/test_",checkpoint_path_to_resume = ""):
+
+    def train_loop(self, model, criterion, optimizer, x_train, y_train, epochs, directory="backend/checkpoints/test_", checkpoint_path_to_resume=""):
         start_epoch = 0
-        if os.path.exists(checkpoint_path_to_resume):
-            # Load the checkpoint to resume training
+        if not checkpoint_path_to_resume == "" and os.path.exists(checkpoint_path_to_resume):
             checkpoint = torch.load(checkpoint_path_to_resume)
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             start_epoch = checkpoint['epoch']
             best_loss = checkpoint['loss']
-            start_epoch = checkpoint_path_to_resume.split('_')[-1]
+            start_epoch = int(checkpoint_path_to_resume.split('_')[-1])
             print(f"Resuming training from epoch {start_epoch}, Loss: {best_loss:.4f}")
-            
+
+        x_train = model.reshape_input(x_train)
         for epoch in range(start_epoch, epochs):
             model.train()
             total_loss = 0.0
@@ -32,33 +35,34 @@ class ModelService(nn.Module):
                 loss.backward()
                 optimizer.step()
                 total_loss += loss.item()
-        
+
             average_loss = total_loss / len(x_train)
-        
-            if (epoch+1) % 1 == 0:
-                print(f'Epoch [{epoch+1}/{epochs}], Loss: {average_loss:.4f}')
+
+            if (epoch + 1) % 1 == 0:
+                print(f'Epoch [{epoch + 1}/{epochs}], Loss: {average_loss:.4f}')
 
             if (epoch + 1) % 5 == 0:
-                # directory = "backend/models/test_"
-                checkpoint_path = f'{directory}{epoch+1}.pth'
+                checkpoint_path = f'{directory}{epoch + 1}.pth'
                 torch.save({
-                    'epoch': epoch+1,
+                    'epoch': epoch + 1,
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': average_loss
                 }, checkpoint_path)
-                print(f"Checkpoint saved at epoch {epoch+1}")
+                print(f"Checkpoint saved. Epoch {epoch + 1}")
+                print(f"Checkpoint saved at {checkpoint_path}")
         return average_loss
-    
+
     def evaluation(self, model, x_test, y_test, criterion):
         model.eval()
         with torch.no_grad():
             total_loss = 0.0
+            x_test = model.reshape_input(x_test)
             for i in range(len(x_test)):
                 output = model(x_test[i])
                 loss = criterion(output, y_test[i])
                 total_loss += loss.item()
-        
+
             average_loss = total_loss / len(x_test)
             print(f'Test Loss: {average_loss:.4f}')
         return average_loss
@@ -66,7 +70,7 @@ class ModelService(nn.Module):
     @staticmethod
     def reshape_input(s):
         pass
-    
+
     @staticmethod
     def register(model, name: str, path: str = "backend/models/"):
         try:
@@ -85,6 +89,32 @@ class ModelService(nn.Module):
             return loaded_model
         except Exception as e:
             print(f"Error loading the entire model: {e}")
+
+    @staticmethod
+    def hyperparameter_optimization(model_class, x_train, y_train, x_val, y_val, model_params_space, max_evals=20):
+        def objective(params):
+            model = model_class(**params['model_params'])
+            criterion = nn.MSELoss()  # Example criterion, modify as needed
+            optimizer = optim.Adam(model.parameters(), lr=params['learning_rate'])
+            
+            # Training loop
+            model_service = ModelService()
+            model_service.train_loop(model, criterion, optimizer, x_train, y_train, params['epochs'])
+            
+            # Evaluation
+            val_loss = model_service.evaluation(model, x_val, y_val, criterion)
+            return {'loss': val_loss, 'status': STATUS_OK}
+
+        search_space = {
+            'model_params': model_params_space,
+            'learning_rate': hp.loguniform('learning_rate', -5, 0),
+            'epochs': scope.int(hp.quniform('epochs', 5, 20, 1))
+        }
+
+        trials = Trials()
+        best = fmin(fn=objective, space=search_space, algo=tpe.suggest, max_evals=max_evals, trials=trials)
+        print(best)
+        return best
 
 
 
