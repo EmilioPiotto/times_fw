@@ -18,10 +18,10 @@ class DataProcessingService:
 
     def create_sequences(self, data):
         xs, ys = [], []
-        for i in range(len(data) - self.seq_length):
-            s = i+self.seq_length
+        for i in range(len(data) - self.seq_length - self.pred_window + 1):
+            s = i + self.seq_length
             x = data[i:s]
-            y = data[s:s+self.pred_window]
+            y = data[s:s + self.pred_window]
             xs.append(x)
             ys.append(y)
         return np.array(xs), np.array(ys)
