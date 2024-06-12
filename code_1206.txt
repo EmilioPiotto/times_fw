@@ -1,3 +1,55 @@
+---------------------------------------------------------------------------
+data_preprocessing_service.py
+
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+import torch
+
+class DataProcessingService:
+    def __init__(self, seq_length:int = 10,pred_window:int = 1, batch_size:int = 10):
+        """
+        pred_window: (prediction window) how many periods ahead will be forcasted
+        """
+        self.seq_length = seq_length
+        self.batch_size = batch_size
+        self.pred_window = pred_window
+
+    def normalize_data(self, data):
+        scaler = MinMaxScaler(feature_range=(-1, 1))
+        data_normalized = scaler.fit_transform(data.reshape(-1, 1))
+        return data_normalized, scaler
+
+    def create_sequences(self, data):
+        xs, ys = [], []
+        for i in range(len(data) - self.seq_length - self.pred_window + 1):
+            s = i + self.seq_length
+            x = data[i:s]
+            y = data[s:s + self.pred_window]
+            xs.append(x)
+            ys.append(y)
+        return np.array(xs), np.array(ys)
+
+    def split_data(self, x_data, y_data, train_ratio=0.8):
+        train_size = int(len(x_data) * train_ratio)
+        x_train, x_test = x_data[:train_size], x_data[train_size:]
+        y_train, y_test = y_data[:train_size], y_data[train_size:]
+        return x_train, x_test, y_train, y_test
+
+    @staticmethod
+    def get_sample_data(length):
+        # Linear data with some noise
+        start = torch.rand(1).item()
+        step = torch.rand(1).item()
+        var = step*4
+
+        array = torch.arange(start, start + step * length, step)
+        random_values = torch.FloatTensor(length).uniform_(-var, var)
+
+        return array + random_values
+
+
+----------------------------------------------------------------------------------------
+model_service.py
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -155,73 +207,41 @@ class ModelService(nn.Module):
             wandb_api_key = os.getenv("WANDB_API_KEY")
             wandb.login(key=wandb_api_key)
 
-    # def predict_with_confidence_intervals(self, model, x, num_samples=100, alpha=0.05, noise_level=0.01):
-    #     """
-    #     Performs prediction with confidence intervals by adding noise to the input data.
 
-    #     Args:
-    #         model: The trained model.
-    #         x: The input data for prediction.
-    #         num_samples: Number of samples to draw for estimating confidence interval. (default: 100)
-    #         alpha: Significance level for the confidence interval. (default: 0.05)
-    #         noise_level: The standard deviation of the Gaussian noise to be added to the input data.
-
-    #     Returns:
-    #         A tuple containing the predicted values and the confidence interval bounds.
-    #     """
-    #     model.eval()
-    #     x = self.reshape_input(x)
-        
-    #     predictions = torch.zeros(num_samples, x.shape[0])
-    #     with torch.no_grad():
-    #         for i in range(num_samples):
-    #             noisy_input = x + torch.randn_like(x) * noise_level
-    #             for j in range(noisy_input.shape[0]):
-    #                 predictions[i, j] = model(noisy_input[j])
-
-    #     predicted_mean = predictions.mean(dim=0)
-    #     prediction_std = predictions.std(dim=0)
-
-    #     # Calculate confidence interval bounds
-    #     confidence_interval_half_width = prediction_std * 1.96  # For a 95% confidence interval
-    #     lower_bound = predicted_mean - confidence_interval_half_width
-    #     upper_bound = predicted_mean + confidence_interval_half_width
-
-    #     return predicted_mean, lower_bound, upper_bound
-
-    @staticmethod
-    def predict_with_confidence_interval(model, x_data, n_samples=1000, alpha=0.05):
+    #############################################################
+    # INSTERT METHOD TO DO INFERENCE WITH CONFIDENCE INTERVALS  #
+    #############################################################
+    def predict_with_confidence_intervals(self, model, x, num_samples=100, alpha=0.05, noise_level=0.01):
         """
-        Generates predictions with confidence intervals.
+        Performs prediction with confidence intervals by adding noise to the input data.
 
-        Parameters:
-        - model: The trained model to use for predictions.
-        - x_data: Input data for which to make predictions.
-        - n_samples: Number of samples to draw for the prediction distribution.
-        - alpha: Significance level for the confidence interval.
+        Args:
+            model: The trained model.
+            x: The input data for prediction.
+            num_samples: Number of samples to draw for estimating confidence interval. (default: 100)
+            alpha: Significance level for the confidence interval. (default: 0.05)
+            noise_level: The standard deviation of the Gaussian noise to be added to the input data.
 
         Returns:
-        - predicted_mean: Mean of the predictions.
-        - lower_bound: Lower bound of the confidence interval.
-        - upper_bound: Upper bound of the confidence interval.
+            A tuple containing the predicted values and the confidence interval bounds.
         """
         model.eval()
-        x_data = model.reshape_input(x_data)
-        predictions = []
-        noise_std = 0.08
+        x = self.reshape_input(x)
+        
+        predictions = torch.zeros(num_samples, x.shape[0])
         with torch.no_grad():
-            for _ in range(n_samples):
-                x_data = x_data + torch.randn_like(x_data) * noise_std # ADD NOISE
-                preds = []
-                for i in range(len(x_data)):
-                    output = model(x_data[i])
-                    preds.append(output)
-                predictions.append(torch.stack(preds))
+            for i in range(num_samples):
+                noisy_input = x + torch.randn_like(x) * noise_level
+                for j in range(noisy_input.shape[0]):
+                    predictions[i, j] = model(noisy_input[j])
 
-        predictions = torch.stack(predictions)
         predicted_mean = predictions.mean(dim=0)
-        lower_bound = torch.quantile(predictions, alpha / 2, dim=0)
-        upper_bound = torch.quantile(predictions, 1 - alpha / 2, dim=0)
+        prediction_std = predictions.std(dim=0)
+
+        # Calculate confidence interval bounds
+        confidence_interval_half_width = prediction_std * 1.96  # For a 95% confidence interval
+        lower_bound = predicted_mean - confidence_interval_half_width
+        upper_bound = predicted_mean + confidence_interval_half_width
 
         return predicted_mean, lower_bound, upper_bound
 
@@ -272,3 +292,70 @@ class LinRegNN(ModelService):
         return s.permute(0, 2, 1)
     
 
+---------------------------------------------------------------------------
+example_template:test.ipynb
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import numpy as np
+from backend.data_processing_service import DataProcessingService
+from backend.model_service import ModelService, LinRegNN
+
+#CONFIG
+log_wandb = False
+
+# Initialize DataProcessingService
+data_processor = DataProcessingService(seq_length=10, pred_window=1, batch_size=10)
+data = np.loadtxt('data/normalized_apple_prices.csv')
+# data = data_processor.get_sample_data(length=50)
+
+# Normalize the data
+data_normalized, scaler = data_processor.normalize_data(data)
+
+# Create sequences
+x_data, y_data = data_processor.create_sequences(data_normalized)
+
+# Split data into training and test sets
+x_train, x_test, y_train, y_test = data_processor.split_data(x_data, y_data, train_ratio=0.8)
+
+# Convert data to PyTorch tensors
+x_train = torch.tensor(x_train, dtype=torch.float32)
+y_train = torch.tensor(y_train, dtype=torch.float32)
+x_test = torch.tensor(x_test, dtype=torch.float32)
+y_test = torch.tensor(y_test, dtype=torch.float32)
+
+ms = ModelService()
+
+
+# Initialize the model with best hyperparameters
+model = LinRegNN(data_processor.seq_length, data_processor.pred_window)
+
+# Define loss function and optimizer
+criterion = nn.MSELoss()
+optimizer = optim.Adam(model.parameters(), lr=best_hyperparams['learning_rate'])
+
+# Training loop
+if log_wandb:
+    ms = ModelService.wandb_login()
+    model.train_loop(model, criterion, optimizer, x_train, y_train, epochs=best_epochs, directory = "backend/checkpoints/lr01_", wandb_project="times_fw")
+if not log_wandb:
+    model.train_loop(model, criterion, optimizer, x_train, y_train, epochs=best_epochs, directory = "backend/checkpoints/lr01_")
+    
+# Eval
+model.evaluation(model, x_test, y_test, criterion)
+
+###############################################################
+# INSTERT CODE TO CREATE INFERENCE WITH CONFIDENCE INTERVALS  #
+###############################################################
+
+
+import matplotlib.pyplot as plt
+x_indices = np.arange(len(x_new))
+plt.figure(figsize=(10, 6))
+plt.plot(x_indices, predicted_mean.numpy(), label='Predicted Mean', color='b')
+plt.fill_between(x_indices, lower_bound.numpy(), upper_bound.numpy(), color='r', alpha=0.3, label='95% Confidence Interval')
+plt.title('Predictions with Confidence Intervals')
+plt.xlabel('Sample Index')
+plt.ylabel('Predicted Value')
+plt.legend()
+plt.show()
