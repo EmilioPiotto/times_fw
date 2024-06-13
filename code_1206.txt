@@ -207,41 +207,39 @@ class ModelService(nn.Module):
             wandb_api_key = os.getenv("WANDB_API_KEY")
             wandb.login(key=wandb_api_key)
 
-
-    #############################################################
-    # INSTERT METHOD TO DO INFERENCE WITH CONFIDENCE INTERVALS  #
-    #############################################################
-    def predict_with_confidence_intervals(self, model, x, num_samples=100, alpha=0.05, noise_level=0.01):
+    @staticmethod
+    def predict_with_confidence_interval(model, x_data, n_samples=1000, alpha=0.05):
         """
-        Performs prediction with confidence intervals by adding noise to the input data.
+        Generates predictions with confidence intervals.
 
-        Args:
-            model: The trained model.
-            x: The input data for prediction.
-            num_samples: Number of samples to draw for estimating confidence interval. (default: 100)
-            alpha: Significance level for the confidence interval. (default: 0.05)
-            noise_level: The standard deviation of the Gaussian noise to be added to the input data.
+        Parameters:
+        - model: The trained model to use for predictions.
+        - x_data: Input data for which to make predictions.
+        - n_samples: Number of samples to draw for the prediction distribution.
+        - alpha: Significance level for the confidence interval.
 
         Returns:
-            A tuple containing the predicted values and the confidence interval bounds.
+        - predicted_mean: Mean of the predictions.
+        - lower_bound: Lower bound of the confidence interval.
+        - upper_bound: Upper bound of the confidence interval.
         """
         model.eval()
-        x = self.reshape_input(x)
-        
-        predictions = torch.zeros(num_samples, x.shape[0])
+        x_data = model.reshape_input(x_data)
+        predictions = []
+        noise_std = 0.08
         with torch.no_grad():
-            for i in range(num_samples):
-                noisy_input = x + torch.randn_like(x) * noise_level
-                for j in range(noisy_input.shape[0]):
-                    predictions[i, j] = model(noisy_input[j])
+            for _ in range(n_samples):
+                x_data = x_data + torch.randn_like(x_data) * noise_std # ADD NOISE
+                preds = []
+                for i in range(len(x_data)):
+                    output = model(x_data[i])
+                    preds.append(output)
+                predictions.append(torch.stack(preds))
 
+        predictions = torch.stack(predictions)
         predicted_mean = predictions.mean(dim=0)
-        prediction_std = predictions.std(dim=0)
-
-        # Calculate confidence interval bounds
-        confidence_interval_half_width = prediction_std * 1.96  # For a 95% confidence interval
-        lower_bound = predicted_mean - confidence_interval_half_width
-        upper_bound = predicted_mean + confidence_interval_half_width
+        lower_bound = torch.quantile(predictions, alpha / 2, dim=0)
+        upper_bound = torch.quantile(predictions, 1 - alpha / 2, dim=0)
 
         return predicted_mean, lower_bound, upper_bound
 
@@ -293,7 +291,7 @@ class LinRegNN(ModelService):
     
 
 ---------------------------------------------------------------------------
-example_template:test.ipynb
+example_template_test.ipynb
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -344,18 +342,42 @@ if not log_wandb:
 # Eval
 model.evaluation(model, x_test, y_test, criterion)
 
-###############################################################
-# INSTERT CODE TO CREATE INFERENCE WITH CONFIDENCE INTERVALS  #
-###############################################################
+i = 1
+x_new = torch.tensor(x_test[i:i+1], dtype=torch.float32)  # Example of new input data
+y_new = torch.tensor(y_test[i:i+1], dtype=torch.float32)
+predicted_mean, lower_bound, upper_bound = model.predict_with_confidence_interval(model, x_new, n_samples=100, alpha=0.05)
 
+# Print results
+print("Predicted Mean:", predicted_mean)
+print("Lower Bound:", lower_bound)
+print("Upper Bound:", upper_bound)
 
-import matplotlib.pyplot as plt
-x_indices = np.arange(len(x_new))
-plt.figure(figsize=(10, 6))
-plt.plot(x_indices, predicted_mean.numpy(), label='Predicted Mean', color='b')
-plt.fill_between(x_indices, lower_bound.numpy(), upper_bound.numpy(), color='r', alpha=0.3, label='95% Confidence Interval')
-plt.title('Predictions with Confidence Intervals')
-plt.xlabel('Sample Index')
-plt.ylabel('Predicted Value')
+# Plotting the input series, predictions, and confidence intervals
+plt.figure(figsize=(12, 8))
+
+# Plot the input series
+plt.plot(range(x_new.shape[1]), x_new.numpy().flatten(), label='Input Series', color='g')
+
+# Append the last point of the input series to the predicted mean, lower bound, and upper bound
+last_input_point  = x_new[0][-1]
+predicted_mean_with_last_point = torch.cat((last_input_point, predicted_mean))
+lower_bound_with_last_point = torch.cat((last_input_point, lower_bound))
+upper_bound_with_last_point = torch.cat((last_input_point, upper_bound))
+y_new_with_last_point = torch.cat((last_input_point, y_new.squeeze()))
+
+input_series_length = x_new.shape[1]
+
+# Plot the label series
+predicted_range = range(input_series_length - 1, input_series_length - 1 + len(y_new_with_last_point.flatten()))
+plt.plot(predicted_range, y_new_with_last_point.numpy().flatten(), label='Labels', color='r')
+
+# Plot the predicted mean and confidence intervals
+predicted_range = range(input_series_length - 1, input_series_length - 1 + len(predicted_mean_with_last_point.flatten()))
+plt.plot(predicted_range, predicted_mean_with_last_point.numpy().flatten(), label='Predicted Mean', color='b')
+plt.fill_between(predicted_range, lower_bound_with_last_point.numpy().flatten(), upper_bound_with_last_point.numpy().flatten(), color='b', alpha=0.1, label='95% Confidence Interval')
+
+plt.title('Input Series, Predictions, and Confidence Intervals')
+plt.xlabel('Time')
+plt.ylabel('Value')
 plt.legend()
 plt.show()

@@ -73,3 +73,22 @@ def test_lin_reg_nn_reshape_input(lin_reg_nn, tensor_sample_data):
     reshaped = lin_reg_nn.reshape_input(x_train)
     assert reshaped.shape == torch.Size([32, 1, 10])
 
+def test_predict_with_confidence_interval(lin_reg_nn, tensor_sample_data):
+    x_train, y_train, x_test, y_test = tensor_sample_data
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(lin_reg_nn.parameters(), lr=0.001)
+    model_service = ModelService()
+
+    # Train the model
+    model_service.train_loop(lin_reg_nn, criterion, optimizer, x_train, y_train, epochs=2)
+
+    # Test prediction with confidence interval
+    predicted_mean, lower_bound, upper_bound = model_service.predict_with_confidence_interval(lin_reg_nn, x_test[:5])
+
+    assert predicted_mean.shape == torch.Size([5, 1, 1])
+    assert lower_bound.shape == torch.Size([5, 1, 1])
+    assert upper_bound.shape == torch.Size([5, 1, 1])
+
+    # Ensure that the lower bound is less than the predicted mean and the predicted mean is less than the upper bound
+    assert torch.all(lower_bound <= predicted_mean)
+    assert torch.all(predicted_mean <= upper_bound)
