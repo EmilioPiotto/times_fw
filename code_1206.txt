@@ -1,3 +1,55 @@
+---------------------------------------------------------------------------
+data_preprocessing_service.py
+
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+import torch
+
+class DataProcessingService:
+    def __init__(self, seq_length:int = 10,pred_window:int = 1, batch_size:int = 10):
+        """
+        pred_window: (prediction window) how many periods ahead will be forcasted
+        """
+        self.seq_length = seq_length
+        self.batch_size = batch_size
+        self.pred_window = pred_window
+
+    def normalize_data(self, data):
+        scaler = MinMaxScaler(feature_range=(-1, 1))
+        data_normalized = scaler.fit_transform(data.reshape(-1, 1))
+        return data_normalized, scaler
+
+    def create_sequences(self, data):
+        xs, ys = [], []
+        for i in range(len(data) - self.seq_length - self.pred_window + 1):
+            s = i + self.seq_length
+            x = data[i:s]
+            y = data[s:s + self.pred_window]
+            xs.append(x)
+            ys.append(y)
+        return np.array(xs), np.array(ys)
+
+    def split_data(self, x_data, y_data, train_ratio=0.8):
+        train_size = int(len(x_data) * train_ratio)
+        x_train, x_test = x_data[:train_size], x_data[train_size:]
+        y_train, y_test = y_data[:train_size], y_data[train_size:]
+        return x_train, x_test, y_train, y_test
+
+    @staticmethod
+    def get_sample_data(length):
+        # Linear data with some noise
+        start = torch.rand(1).item()
+        step = torch.rand(1).item()
+        var = step*4
+
+        array = torch.arange(start, start + step * length, step)
+        random_values = torch.FloatTensor(length).uniform_(-var, var)
+
+        return array + random_values
+
+
+----------------------------------------------------------------------------------------
+model_service.py
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -238,3 +290,94 @@ class LinRegNN(ModelService):
         return s.permute(0, 2, 1)
     
 
+---------------------------------------------------------------------------
+example_template_test.ipynb
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import numpy as np
+from backend.data_processing_service import DataProcessingService
+from backend.model_service import ModelService, LinRegNN
+
+#CONFIG
+log_wandb = False
+
+# Initialize DataProcessingService
+data_processor = DataProcessingService(seq_length=10, pred_window=1, batch_size=10)
+data = np.loadtxt('data/normalized_apple_prices.csv')
+# data = data_processor.get_sample_data(length=50)
+
+# Normalize the data
+data_normalized, scaler = data_processor.normalize_data(data)
+
+# Create sequences
+x_data, y_data = data_processor.create_sequences(data_normalized)
+
+# Split data into training and test sets
+x_train, x_test, y_train, y_test = data_processor.split_data(x_data, y_data, train_ratio=0.8)
+
+# Convert data to PyTorch tensors
+x_train = torch.tensor(x_train, dtype=torch.float32)
+y_train = torch.tensor(y_train, dtype=torch.float32)
+x_test = torch.tensor(x_test, dtype=torch.float32)
+y_test = torch.tensor(y_test, dtype=torch.float32)
+
+ms = ModelService()
+
+
+# Initialize the model with best hyperparameters
+model = LinRegNN(data_processor.seq_length, data_processor.pred_window)
+
+# Define loss function and optimizer
+criterion = nn.MSELoss()
+optimizer = optim.Adam(model.parameters(), lr=best_hyperparams['learning_rate'])
+
+# Training loop
+if log_wandb:
+    ms = ModelService.wandb_login()
+    model.train_loop(model, criterion, optimizer, x_train, y_train, epochs=best_epochs, directory = "backend/checkpoints/lr01_", wandb_project="times_fw")
+if not log_wandb:
+    model.train_loop(model, criterion, optimizer, x_train, y_train, epochs=best_epochs, directory = "backend/checkpoints/lr01_")
+    
+# Eval
+model.evaluation(model, x_test, y_test, criterion)
+
+i = 1
+x_new = torch.tensor(x_test[i:i+1], dtype=torch.float32)  # Example of new input data
+y_new = torch.tensor(y_test[i:i+1], dtype=torch.float32)
+predicted_mean, lower_bound, upper_bound = model.predict_with_confidence_interval(model, x_new, n_samples=100, alpha=0.05)
+
+# Print results
+print("Predicted Mean:", predicted_mean)
+print("Lower Bound:", lower_bound)
+print("Upper Bound:", upper_bound)
+
+# Plotting the input series, predictions, and confidence intervals
+plt.figure(figsize=(12, 8))
+
+# Plot the input series
+plt.plot(range(x_new.shape[1]), x_new.numpy().flatten(), label='Input Series', color='g')
+
+# Append the last point of the input series to the predicted mean, lower bound, and upper bound
+last_input_point  = x_new[0][-1]
+predicted_mean_with_last_point = torch.cat((last_input_point, predicted_mean))
+lower_bound_with_last_point = torch.cat((last_input_point, lower_bound))
+upper_bound_with_last_point = torch.cat((last_input_point, upper_bound))
+y_new_with_last_point = torch.cat((last_input_point, y_new.squeeze()))
+
+input_series_length = x_new.shape[1]
+
+# Plot the label series
+predicted_range = range(input_series_length - 1, input_series_length - 1 + len(y_new_with_last_point.flatten()))
+plt.plot(predicted_range, y_new_with_last_point.numpy().flatten(), label='Labels', color='r')
+
+# Plot the predicted mean and confidence intervals
+predicted_range = range(input_series_length - 1, input_series_length - 1 + len(predicted_mean_with_last_point.flatten()))
+plt.plot(predicted_range, predicted_mean_with_last_point.numpy().flatten(), label='Predicted Mean', color='b')
+plt.fill_between(predicted_range, lower_bound_with_last_point.numpy().flatten(), upper_bound_with_last_point.numpy().flatten(), color='b', alpha=0.1, label='95% Confidence Interval')
+
+plt.title('Input Series, Predictions, and Confidence Intervals')
+plt.xlabel('Time')
+plt.ylabel('Value')
+plt.legend()
+plt.show()
