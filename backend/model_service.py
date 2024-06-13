@@ -155,40 +155,6 @@ class ModelService(nn.Module):
             wandb_api_key = os.getenv("WANDB_API_KEY")
             wandb.login(key=wandb_api_key)
 
-    # def predict_with_confidence_intervals(self, model, x, num_samples=100, alpha=0.05, noise_level=0.01):
-    #     """
-    #     Performs prediction with confidence intervals by adding noise to the input data.
-
-    #     Args:
-    #         model: The trained model.
-    #         x: The input data for prediction.
-    #         num_samples: Number of samples to draw for estimating confidence interval. (default: 100)
-    #         alpha: Significance level for the confidence interval. (default: 0.05)
-    #         noise_level: The standard deviation of the Gaussian noise to be added to the input data.
-
-    #     Returns:
-    #         A tuple containing the predicted values and the confidence interval bounds.
-    #     """
-    #     model.eval()
-    #     x = self.reshape_input(x)
-        
-    #     predictions = torch.zeros(num_samples, x.shape[0])
-    #     with torch.no_grad():
-    #         for i in range(num_samples):
-    #             noisy_input = x + torch.randn_like(x) * noise_level
-    #             for j in range(noisy_input.shape[0]):
-    #                 predictions[i, j] = model(noisy_input[j])
-
-    #     predicted_mean = predictions.mean(dim=0)
-    #     prediction_std = predictions.std(dim=0)
-
-    #     # Calculate confidence interval bounds
-    #     confidence_interval_half_width = prediction_std * 1.96  # For a 95% confidence interval
-    #     lower_bound = predicted_mean - confidence_interval_half_width
-    #     upper_bound = predicted_mean + confidence_interval_half_width
-
-    #     return predicted_mean, lower_bound, upper_bound
-
     @staticmethod
     def predict_with_confidence_interval(model, x_data, n_samples=1000, alpha=0.05):
         """
