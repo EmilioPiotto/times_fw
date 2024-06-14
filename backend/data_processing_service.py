@@ -19,8 +19,11 @@ class DataProcessingService:
             data_normalized = scaler.fit_transform(data.reshape(-1, 1))
         return data_normalized, scaler
 
-    def decompose_series(self, data_series):
-        stl = STL(data_series)
+    def decompose_series(self, data_series, seasonal=None):
+        if seasonal is None:
+            stl = STL(data_series)
+        else:
+            stl = STL(data_series, seasonal=seasonal)
         result = stl.fit()
         return result.observed, result.trend, result.seasonal, result.resid
 
@@ -41,9 +44,10 @@ class DataProcessingService:
         return x_train, x_test, y_train, y_test
 
     def process_multiple_series(self, time_series_list):
+        """Returns observed, trend, seasonal, resid for each time series provided as input"""
         combined_data_list = []
         for series in time_series_list:
-            normalized_data, _ = self.normalize_data(series)
+            normalized_data, scaler = self.normalize_data(series)
             if self.has_date_index and isinstance(series, pd.Series):
                 data_series = pd.Series(normalized_data.squeeze(), index=series.index)
                 observed, trend, seasonal, resid = self.decompose_series(data_series)
