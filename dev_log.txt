@@ -2,3 +2,7 @@
 - Set up base model and input data processing services
 - Set up a models examples on sample data
 - Set up pytest and create unit tests for the services
+
+
+- Add STD
+- Prepare for multivariate inputs
